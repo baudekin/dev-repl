@@ -1,0 +1,203 @@
+import glob
+import os
+import subprocess
+import urllib
+import zipfile
+from pathlib import Path
+from shutil import rmtree, copyfile, move
+from util import replace_in_file, httpget
+import console_output as out
+from proc import cmd
+from . import ReplCommand
+import requests
+
+
+class Pentaho(ReplCommand):
+
+    def do_spoon(self, arg):
+        self.exec_with_debug(self.get_spoon_path(), self.get_spoon_log_path())
+
+    def do_pentaho_server(self, arg):
+        start_stop_dir = self.session['dot_dir'] + 'qat'
+        stop_pentaho_server(start_stop_dir)
+        self.exec_with_debug(start_stop_dir + '/server/pentaho-server/start-pentaho-debug.sh',
+                             self.get_server_log_path(), debug_port=8044)
+
+    def do_carte(self, arg):
+        http_port = '8081'
+        env = {'KETTLE_CARTE_OBJECT_TIMEOUT_MINUTES': '1'}
+        self.exec_with_debug([self.session['dot_dir'] + 'qat/design-tools/data-integration/carte.sh', '127.0.0.1', http_port],
+                             self.get_carte_log_path(), extra_env=env, debug_port=5007)
+
+    def exec_with_debug(self, exec_path, log_path, debug_port=5006, extra_env={}, suspend='n'):
+        out.highlighted("Starting: " + str(exec_path), "Debug port " + str(debug_port))
+        env = os.environ
+        env.update(
+            {'OPT': '-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=' + suspend + ',address=' + str(
+                debug_port)})
+        env.update(extra_env)
+        print(exec_path)
+        print(env)
+        log = open(log_path, 'a')
+        wd = exec_path if type(exec_path) is str else exec_path[0]
+
+        subprocess \
+            .Popen(exec_path,
+                   cwd=Path(wd).parent,
+                   shell=False,
+                   stdout=log,
+                   stderr=log,
+                   env=env,
+                   start_new_session=True)  # start_new_session prevents ctl-c from being passed to this proc
+
+    def do_log(self, arg):
+        if arg == 'server':
+            logpath = self.get_server_log_path()
+        elif arg == 'carte':
+            logpath = self.get_carte_log_path()
+        else:
+            logpath = self.get_spoon_log_path()
+        cmd(['tail', '-f', '-500', logpath], shell=True, stdout=None)
+
+    def complete_log(self, text, line, begidx, endidx):
+        return [i.lstrip('-') for i in ['spoon', 'server', 'carte'] if i.startswith(text) or i.startswith('-' + text)]
+
+    def get_spoon_log_path(self):
+        return self.session['dot_dir'] + 'qat/spoon.log'
+
+    def get_carte_log_path(self):
+        return self.session['dot_dir'] + 'qat/carte.log'
+
+    def get_server_log_path(self):
+        return self.session['dot_dir'] + 'qat/server/pentaho-server/tomcat/logs/catalina.out'
+
+    def get_spoon_path(self):
+        return self.get_data_integration_dir() + '/spoon.sh'
+
+    def get_data_integration_dir(self):
+        return self.session['dot_dir'] + "/qat/design-tools/data-integration"
+
+    def get_pentaho_server_dir(self):
+        return self.session['dot_dir'] + "/qat/server/pentaho-server"
+
+    def do_install_plugin(self, arg):
+        dot_dir = self.session['dot_dir']
+        # find built artifacts
+        if arg == 'pdi-legacy':
+            self.install_plugin(self.get_data_integration_dir() + "/plugins")
+            self.install_plugin(dot_dir + self.get_pentaho_server_dir() + "/system/kettle/plugins")
+        elif arg == 'puc-legacy':
+            self.install_plugin(dot_dir + "/qat/server/pentaho-server/pentaho-solutions/system")
+        else:
+            out.error('Specify "pdi-legacy" or "puc-legacy"')
+
+    def install_plugin(self, plugin_path):
+        proj_path = self.get_proj_path()
+        zips = [file for file in
+                glob.iglob(proj_path + '/**/target/*.zip', recursive=True)
+                if 'plugin' in str(file)]
+        if len(zips) == 0:
+            out.error("No plugin zip found under " + proj_path)
+            return
+        out.info(". . . . . . \nInstalling plugin \n" + zips[0] + "\n   to  \n" + plugin_path + "\n. . . . . . . .")
+
+        zipref = zipfile.ZipFile(zips[0])
+        temp_dir = plugin_path + "/.temp/"
+        rmtree(temp_dir, ignore_errors=True)
+        zipref.extractall(temp_dir)
+        zipref.close()
+
+        subdirs = list(glob.iglob(temp_dir + "*"))
+        if len(subdirs) == 1:
+            plugin_name = Path(subdirs[0]).name
+            out.info("Plugin dir name:  " + plugin_name)
+            cur_plugin = plugin_path + "/" + plugin_name
+            out.warn("Removing dir " + cur_plugin)
+            rmtree(plugin_path + "/" + plugin_name, ignore_errors=True)
+            out.info("Installing plugin " + plugin_name)
+            move(temp_dir + "/" + plugin_name, plugin_path + "/" + plugin_name)
+            out.info("Done.")
+
+    def do_install_lib(self, arg):
+        self.move_jar_to(self.get_data_integration_dir() + "/lib/")
+        self.move_jar_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
+
+    def do_install_drivers(self, arg):
+        load_drivers_to(self.get_data_integration_dir() + "/lib/")
+        load_drivers_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
+
+    def do_install_bundle(self, arg):
+        self.move_jar_to(self.get_data_integration_dir() + "/system/karaf/deploy/")
+        self.move_jar_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/")
+
+    def prompt_str(self):
+        di_path = Path(self.get_data_integration_dir())
+        if di_path.exists():
+            jar = glob.glob((di_path / "lib").as_posix() + "/kettle-core-*")
+            version_num = Path(jar[0]).name[12:-4]
+            self.session['pentaho_version'] = version_num
+            return "[" + version_num + "]"
+
+    def do_set_project_version(self, arg):
+        if len(arg) > 0:
+            version = arg
+        else:
+            version = self.session['pentaho_version']
+        set_version_cmd = ["mvn", "-f", self.session['curproj'][1], "versions:set", "-DnewVersion={}".format(version)]
+        cmd(set_version_cmd, stdout=None)
+
+    def do_list_artifacts(self, arg):
+        out.highlighted(*self.get_artifacts(self.get_proj_path()))
+
+    def do_lineage_on(self, arg):
+        replace_in_file(self.get_data_integration_dir() + '/system/karaf/etc/pentaho.metaverse.cfg', '=off', '=on')
+
+    def move_jar_to(self, to):
+        jars = self.get_artifacts(self.get_proj_path())
+        if len(jars) == 0:
+            out.error("No jars found under " + self.get_proj_path())
+            return
+        if len(jars) >= 1:
+            out.table('Jars found', rows=jars)
+            print()
+            answer = input('Copy jars to ' + to + '? Y/N: ')
+            if answer.upper() != 'Y':
+                return
+
+        for jar in jars:
+            jar_name = Path(jar).name
+            name_prefix = jar_name[0:jar_name.rfind("-")]
+            out.info('Searching for matches "' + name_prefix + '"\n')
+            out.info('-' * 40)
+            for f in os.listdir(to):
+                if name_prefix in f:
+                    out.warn("\n > > Deleting " + f)
+                    os.remove(to + "/" + f)
+
+            out.highlighted("Copying", jar, "   to   ", to)
+            copyfile(jar, to + jar_name)
+
+    def get_proj_path(self):
+        return Path(self.session['curproj'][1]).parent.as_posix()
+
+    def get_artifacts(self, proj_path):
+        return [file for file in
+                glob.iglob(proj_path + '/**/target/*.jar', recursive=True)
+                if "-sources" not in str(file) and "-test" not in str(file)]
+
+
+
+def load_drivers_to(dest):
+    drivers = [
+        "https://repository.mulesoft.org/nexus/content/repositories/public/com/amazon/redshift/redshift-jdbc42-no-awssdk/1.2.34.1058/redshift-jdbc42-no-awssdk-1.2.34.1058.jar"]
+    for driver in drivers:
+        httpget(driver, dest + driver.rsplit('/', 1).pop())
+
+
+def stop_pentaho_server(server_dir):
+    if Path(server_dir).exists():
+        try:
+            out.highlighted('Stopping Pentaho server')
+            cmd('stop.command', server_dir)
+        except:
+            pass
