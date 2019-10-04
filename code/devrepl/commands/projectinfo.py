@@ -30,6 +30,7 @@ class ProjectInfo(ReplCommand):
         conn.close
 
     def do_projectinfo_sync(self, arg):
+
         conn = self.connect_devrepl_db()
         c = conn.cursor()
         c.execute('DROP TABLE IF EXISTS projects')
@@ -38,18 +39,22 @@ class ProjectInfo(ReplCommand):
         poms = [file for file in glob.iglob(self.session['proj_dir'] + '/' + '**/pom.xml', recursive=True)]
         print('Found {} pom files.'.format(len(poms)))
         for pom in poms:
-            proj = "unknown"
-            try:
-                pomxml = xml.etree.ElementTree.parse(pom).getroot()
-                find = pomxml.find("{http://maven.apache.org/POM/4.0.0}artifactId")
-                if not find == None:
-                    proj = find.text
-            except:
-                # ignore
-                print("failed to parse " + pom)
+            proj = self.proj_name_from_pom(pom)
             c.execute("INSERT INTO projects (pom, proj) VALUES (?, ?)", (pom, proj))
         conn.commit()
         conn.close()
+
+    def proj_name_from_pom(self, pom):
+        proj = "unknown"
+        try:
+            pomxml = xml.etree.ElementTree.parse(pom).getroot()
+            find = pomxml.find("{http://maven.apache.org/POM/4.0.0}artifactId")
+            if not find == None:
+                proj = find.text
+        except:
+            # ignore
+            print("failed to parse " + pom)
+        return proj
 
     def connect_devrepl_db(self):
         conn = sqlite3.connect(self.session['dot_dir'] + 'devrepl.db')
@@ -90,10 +95,19 @@ class ProjectInfo(ReplCommand):
         conn.close()
 
     def do_sp(self, arg):
-
+        curproj = self.session['curproj']
+        if arg == '..':
+            curpom = Path(curproj[1])
+            parentpom = Path(curpom.parent.parent, 'pom.xml').as_posix()
+            sql = "select proj, pom from projects where pom = '" + parentpom + "'"
+        elif arg == '-':
+            sql = "select proj, pom  from projects where proj <> '" + curproj[
+                0] + "' order by lastaccessed desc limit 1"
+        else:
+            sql = "select proj, pom from projects where proj = '" + arg + "'"
         conn = self.connect_devrepl_db()
         curs = conn.cursor()
-        rows = conn.execute("select proj, pom from projects where proj = '" + arg + "'")
+        rows = conn.execute(sql)
 
         proj_matches = [row for row in rows]
         if not len(proj_matches) == 1:
@@ -126,7 +140,15 @@ class ProjectInfo(ReplCommand):
         conn.commit()
         conn.close()
 
-    def complete_projectinfo_sp(self, text, line, begidx, endidx):
+    def do_lcp(self, arg):
+        '''
+        Lists child maven projects below the currently selected project
+        '''
+        poms = [file for file in
+                glob.iglob(Path(self.session['curproj'][1]).parent.as_posix() + '/' + '**/pom.xml', recursive=False)]
+        out.table(self.session['curproj'][0], rows=[self.proj_name_from_pom(pom) for pom in poms])
+
+    def complete_sp(self, text, line, begidx, endidx):
         conn = sqlite3.connect('devrepl.db')
         mline = line.partition(' ')[2]
         rows = conn.execute("select proj from projects where proj like '" + mline + "%' order by lastaccessed desc")
@@ -141,4 +163,3 @@ class ProjectInfo(ReplCommand):
     def prompt_str(self):
         if self.session.get('curproj'):
             return "[{}]".format(self.session['curproj'][0])
-

@@ -28,20 +28,34 @@ class Box(ReplCommand):
         out.info("Retrieving build number " + builds[2][0])
 
         build_num = builds[2][0]
-        filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.session['bi_version'], build_num)
-        path_to_installer = self.session['ci_root'] + build_num + "/ee/installers/" + filename
+        prev_build_num = builds[3][0]
+
+        path_to_installer = self.path_to_installer_for_build(build_num)
         local_filename = self.session['dot_dir'] + '/pentaho-business-analytics.app.tar.gz'
 
         rm(local_filename)
+        try:
+            self.retrieve_file(ftps, local_filename, path_to_installer)
+        except:
+            out.error('Failed to get build ' + build_num + '.\nTrying to get build ' + prev_build_num)
+            path_to_installer = self.path_to_installer_for_build(prev_build_num)
+            try:
+                self.retrieve_file(ftps, local_filename, path_to_installer)
+            except:
+                out.error('Failed to get build ' + prev_build_num)
 
+
+    def path_to_installer_for_build(self, build_num):
+        filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.session['bi_version'], build_num)
+        path_to_installer = self.session['ci_root'] + build_num + "/ee/installers/" + filename
+        return path_to_installer
+
+    def retrieve_file(self, ftps, local_filename, remote_filename):
         localfile = open(local_filename, 'wb')
-
-        total_size = ftps.size(path_to_installer)
-
+        total_size = ftps.size(remote_filename)
         out.info("writing to " + local_filename + ", size:  " + str(total_size / 1024 / 1024) + "M")
         pbar = tqdm(total=total_size)
-        ftps.retrbinary('RETR ' + path_to_installer, self.progress_wrapper(pbar, localfile.write), 1024)
-
+        ftps.retrbinary('RETR ' + remote_filename, self.progress_wrapper(pbar, localfile.write), 1024)
         ftps.close()
         localfile.close()
 

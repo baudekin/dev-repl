@@ -14,6 +14,8 @@ class Mvn(ReplCommand):
         build = ["mvn", "clean", "install", "-f", self.session['curproj'][1]]
         if arg == 'st':
             build = build + ["-DskipTests"]
+        elif arg == 'q':  # build quick.  skip tests, use maven cache
+            build = build + ["-DskipTests", "-o"]
         else:
             build = build + ["-DrunITs"]
         out.print_command(build)

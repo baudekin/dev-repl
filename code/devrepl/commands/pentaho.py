@@ -15,7 +15,12 @@ import requests
 class Pentaho(ReplCommand):
 
     def do_spoon(self, arg):
-        self.exec_with_debug(self.get_spoon_path(), self.get_spoon_log_path())
+        if arg == 'suspend':
+            suspend = 'y'
+        else:
+            suspend = 'n'
+
+        self.exec_with_debug(self.get_spoon_path(), self.get_spoon_log_path(), suspend=suspend)
 
     def do_pentaho_server(self, arg):
         start_stop_dir = self.session['dot_dir'] + 'qat'
@@ -36,8 +41,6 @@ class Pentaho(ReplCommand):
             {'OPT': '-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=' + suspend + ',address=' + str(
                 debug_port)})
         env.update(extra_env)
-        print(exec_path)
-        print(env)
         log = open(log_path, 'a')
         wd = exec_path if type(exec_path) is str else exec_path[0]
 
@@ -189,7 +192,9 @@ class Pentaho(ReplCommand):
 
 def load_drivers_to(dest):
     drivers = [
-        "https://repository.mulesoft.org/nexus/content/repositories/public/com/amazon/redshift/redshift-jdbc42-no-awssdk/1.2.34.1058/redshift-jdbc42-no-awssdk-1.2.34.1058.jar"]
+        "https://repository.mulesoft.org/nexus/content/repositories/public/com/amazon/redshift/redshift-jdbc42-no-awssdk/1.2.34.1058/redshift-jdbc42-no-awssdk-1.2.34.1058.jar",
+        "https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.48/mysql-connector-java-5.1.48.jar"
+    ]
     for driver in drivers:
         httpget(driver, dest + driver.rsplit('/', 1).pop())
 
