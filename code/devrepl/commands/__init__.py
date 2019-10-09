@@ -3,8 +3,10 @@ import cmd, inspect
 import commands
 
 class ReplCommand(cmd.Cmd):
-    def config_items(self):
-        return "";
+
+    # called when the repl is started, after session and settings have been init'd
+    def startup(self):
+        pass
 
     def prompt_str(self):
         return ">> "
@@ -12,11 +14,7 @@ class ReplCommand(cmd.Cmd):
     def desc(self):
         return "base Repl"
 
-    def get_session(self):
-        return {}
 
-    def sync_session(self):
-        pass
 
 def get_commands():
     classes = []

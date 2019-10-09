@@ -9,20 +9,20 @@ from commands.pentaho import Pentaho
 from commands import ReplCommand
 from pathlib import Path
 import console_output as out
+import json
+from shutil import copyfile
 
 
 def get_repl(command_list):
     class Repl(*command_list, ReplCommand):
         session = {}
-        session['dot_dir'] = str(Path.home()) + "/.dev2/"
+        settings = {}
+        dot_dir = str(Path.home()) + "/.devrepl/"
 
         def do_init_repl_dir(self):
-            d = input('What directory should be used for dev repl downloads / session data (default {})'.format(
-                self.session['dot_dir']))
-            if len(d) > 0:
-                self.session['dot_dir'] = d
-            if not Path(self.session['dot_dir']).exists():
-                Path(self.session['dot_dir']).mkdir()
+
+            if not Path(self.dot_dir).exists():
+                Path(self.dot_dir).mkdir()
 
         def emptyline(self):
             pass
@@ -49,20 +49,33 @@ def get_repl(command_list):
             for command in command_list:
                 print(command().desc())
 
-        def dot_dir(self):
-            return self.session['dot_dir']
-
         def savestate(self):
-            with open(self.dot_dir() + '/session', 'wb') as fp:
+            with open(self.dot_dir + '/session', 'wb') as fp:
                 pickle.dump(self.session, fp)
 
         def loadstate(self):
-            if Path(self.dot_dir() + "/session").exists():
+            with open(self.dot_dir + "/settings.json") as settings:
+                fixed_json = ''.join(line for line in settings if not line.lstrip().startswith('//'))
+                self.settings = json.loads(fixed_json)
+
+            if Path(self.dot_dir + "/session").exists():
                 try:
-                    with open(self.dot_dir() + '/session', 'rb') as fp:
+                    with open(self.dot_dir + '/session', 'rb') as fp:
                         self.session = pickle.load(fp)
                 except:
                     print('failed to load prev session')
+            self.invoke_on_each_cmd("startup", lambda s:  None)
+
+        def first_run(self):
+            if not Path(self.dot_dir).exists():
+                print("Starting devrepl for the first time.")
+                print("Creating directory " + self.dot_dir)
+                Path(self.dot_dir).mkdir()
+                copyfile("settings.json", self.dot_dir + "settings.json")
+                print("Edit the file " + self.dot_dir + "settings.json, and then restart.")
+                return True
+            else:
+                return False
 
         def invoke_on_each_cmd(self, methodname, lamb):
             for clazz in type(self).__mro__:
@@ -73,15 +86,20 @@ def get_repl(command_list):
     return Repl(completekey='tab')
 
 
-
 import signal
+
 
 def handler(signum, frame):
     pass
 
+
 signal.signal(signal.SIGINT, handler)
 
-
 repl = get_repl([Mvn, Git, ProjectInfo, Box, Pentaho, Jira])
-repl.loadstate()
-repl.cmdloop()
+
+if not repl.first_run():
+    repl.loadstate()
+    repl.cmdloop()
+
+
+

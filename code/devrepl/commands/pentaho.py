@@ -23,7 +23,7 @@ class Pentaho(ReplCommand):
         self.exec_with_debug(self.get_spoon_path(), self.get_spoon_log_path(), suspend=suspend)
 
     def do_pentaho_server(self, arg):
-        start_stop_dir = self.session['dot_dir'] + 'qat'
+        start_stop_dir = self.dot_dir + 'qat'
         stop_pentaho_server(start_stop_dir)
         self.exec_with_debug(start_stop_dir + '/server/pentaho-server/start-pentaho-debug.sh',
                              self.get_server_log_path(), debug_port=8044)
@@ -31,7 +31,7 @@ class Pentaho(ReplCommand):
     def do_carte(self, arg):
         http_port = '8081'
         env = {'KETTLE_CARTE_OBJECT_TIMEOUT_MINUTES': '1'}
-        self.exec_with_debug([self.session['dot_dir'] + 'qat/design-tools/data-integration/carte.sh', '127.0.0.1', http_port],
+        self.exec_with_debug([self.dot_dir + 'qat/design-tools/data-integration/carte.sh', '127.0.0.1', http_port],
                              self.get_carte_log_path(), extra_env=env, debug_port=5007)
 
     def exec_with_debug(self, exec_path, log_path, debug_port=5006, extra_env={}, suspend='n'):
@@ -66,25 +66,25 @@ class Pentaho(ReplCommand):
         return [i.lstrip('-') for i in ['spoon', 'server', 'carte'] if i.startswith(text) or i.startswith('-' + text)]
 
     def get_spoon_log_path(self):
-        return self.session['dot_dir'] + 'qat/spoon.log'
+        return self.dot_dir + 'qat/spoon.log'
 
     def get_carte_log_path(self):
-        return self.session['dot_dir'] + 'qat/carte.log'
+        return self.dot_dir + 'qat/carte.log'
 
     def get_server_log_path(self):
-        return self.session['dot_dir'] + 'qat/server/pentaho-server/tomcat/logs/catalina.out'
+        return self.dot_dir + 'qat/server/pentaho-server/tomcat/logs/catalina.out'
 
     def get_spoon_path(self):
         return self.get_data_integration_dir() + '/spoon.sh'
 
     def get_data_integration_dir(self):
-        return self.session['dot_dir'] + "/qat/design-tools/data-integration"
+        return self.dot_dir + "/qat/design-tools/data-integration"
 
     def get_pentaho_server_dir(self):
-        return self.session['dot_dir'] + "/qat/server/pentaho-server"
+        return self.dot_dir + "/qat/server/pentaho-server"
 
     def do_install_plugin(self, arg):
-        dot_dir = self.session['dot_dir']
+        dot_dir = self.dot_dir
         # find built artifacts
         if arg == 'pdi-legacy':
             self.install_plugin(self.get_data_integration_dir() + "/plugins")
@@ -122,16 +122,21 @@ class Pentaho(ReplCommand):
             out.info("Done.")
 
     def do_install_lib(self, arg):
-        self.move_jar_to(self.get_data_integration_dir() + "/lib/")
-        self.move_jar_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
+        self.move_artifact_to(self.get_data_integration_dir() + "/lib/")
+        self.move_artifact_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
 
     def do_install_drivers(self, arg):
-        load_drivers_to(self.get_data_integration_dir() + "/lib/")
-        load_drivers_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
+        self.load_drivers_to(self.get_data_integration_dir() + "/lib/")
+        self.load_drivers_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
 
     def do_install_bundle(self, arg):
-        self.move_jar_to(self.get_data_integration_dir() + "/system/karaf/deploy/")
-        self.move_jar_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/")
+        self.move_artifact_to(self.get_data_integration_dir() + "/system/karaf/deploy/")
+        self.move_artifact_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/")
+
+    def do_install_kar(self, arg):
+        self.move_artifact_to(self.get_data_integration_dir() + "/system/karaf/deploy/", artifact_extension='kar')
+        self.move_artifact_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/", artifact_extension='kar')
+
 
     def prompt_str(self):
         di_path = Path(self.get_data_integration_dir())
@@ -155,13 +160,13 @@ class Pentaho(ReplCommand):
     def do_lineage_on(self, arg):
         replace_in_file(self.get_data_integration_dir() + '/system/karaf/etc/pentaho.metaverse.cfg', '=off', '=on')
 
-    def move_jar_to(self, to):
-        jars = self.get_artifacts(self.get_proj_path())
+    def move_artifact_to(self, to, artifact_extension='jar'):
+        jars = self.get_artifacts(self.get_proj_path(), artifact_extension=artifact_extension)
         if len(jars) == 0:
             out.error("No jars found under " + self.get_proj_path())
             return
-        if len(jars) >= 1:
-            out.table('Jars found', rows=jars)
+        if len(jars) > 1:
+            out.table('Artifacts found', rows=jars)
             print()
             answer = input('Copy jars to ' + to + '? Y/N: ')
             if answer.upper() != 'Y':
@@ -183,20 +188,16 @@ class Pentaho(ReplCommand):
     def get_proj_path(self):
         return Path(self.session['curproj'][1]).parent.as_posix()
 
-    def get_artifacts(self, proj_path):
+    def get_artifacts(self, proj_path, artifact_extension='jar'):
         return [file for file in
-                glob.iglob(proj_path + '/**/target/*.jar', recursive=True)
+                glob.iglob(proj_path + '/**/target/*.' + artifact_extension, recursive=True)
                 if "-sources" not in str(file) and "-test" not in str(file)]
 
 
 
-def load_drivers_to(dest):
-    drivers = [
-        "https://repository.mulesoft.org/nexus/content/repositories/public/com/amazon/redshift/redshift-jdbc42-no-awssdk/1.2.34.1058/redshift-jdbc42-no-awssdk-1.2.34.1058.jar",
-        "https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.48/mysql-connector-java-5.1.48.jar"
-    ]
-    for driver in drivers:
-        httpget(driver, dest + driver.rsplit('/', 1).pop())
+    def load_drivers_to(self, dest):
+        for driver in self.settings['jdbc_drivers']:
+            httpget(driver, dest + driver.rsplit('/', 1).pop())
 
 
 def stop_pentaho_server(server_dir):

@@ -17,8 +17,11 @@ def find_pom_dir(path):
 
 class ProjectInfo(ReplCommand):
 
-    def do_set_projects_dir(self, arg):
-        self.session['proj_dir'] = input('What is the path of parent directory containing your git projects?\n ?>  ')
+    def startup(self):
+        if not Path(self.dot_dir + 'devrepl.db').exists():
+            print("Loading project info, please wait.")
+            self.do_projectinfo_sync(None)
+
 
     def do_class_info(self, arg):
         conn = self.connect_devrepl_db()
@@ -36,7 +39,7 @@ class ProjectInfo(ReplCommand):
         c.execute('DROP TABLE IF EXISTS projects')
         c.execute('''CREATE TABLE IF NOT EXISTS projects
              (pom text, proj text, lastaccessed timestamp)''')
-        poms = [file for file in glob.iglob(self.session['proj_dir'] + '/' + '**/pom.xml', recursive=True)]
+        poms = [file for file in glob.iglob(self.settings['proj_dir'] + '/' + '**/pom.xml', recursive=True)]
         print('Found {} pom files.'.format(len(poms)))
         for pom in poms:
             proj = self.proj_name_from_pom(pom)
@@ -57,7 +60,7 @@ class ProjectInfo(ReplCommand):
         return proj
 
     def connect_devrepl_db(self):
-        conn = sqlite3.connect(self.session['dot_dir'] + 'devrepl.db')
+        conn = sqlite3.connect(self.dot_dir + 'devrepl.db')
         return conn
 
     def do_classinfo_sync(self, arg):
@@ -67,7 +70,7 @@ class ProjectInfo(ReplCommand):
         c.execute('''CREATE TABLE IF NOT EXISTS class_imports
              (import text, classname text, pom text)''')
         classes = [file for file in
-                   glob.iglob(self.session['proj_dir'] + '/pentaho/pentaho-kettle.git/' + '**/*.java', recursive=True)]
+                   glob.iglob(self.settings['proj_dir'] + '/pentaho/pentaho-kettle.git/' + '**/*.java', recursive=True)]
         print('Found {} class files.'.format(len(classes)))
         for clazz in classes:
             pom = "unknown"
@@ -95,7 +98,10 @@ class ProjectInfo(ReplCommand):
         conn.close()
 
     def do_sp(self, arg):
-        curproj = self.session['curproj']
+        if 'curproj' in self.session:
+            curproj = self.session['curproj']
+        else:
+            curproj = None
         if arg == '..':
             curpom = Path(curproj[1])
             parentpom = Path(curpom.parent.parent, 'pom.xml').as_posix()

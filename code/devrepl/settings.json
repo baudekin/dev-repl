@@ -1,0 +1,22 @@
+{
+  // what is the parent directory of your git projects?
+  "proj_dir": "",
+
+  "box_host": "",
+  "box_user": "",
+  "box_pwd": "",
+  "ci_root": "",
+  "bi_version": "",
+
+  "jira_url": "https://jira.pentaho.com",
+  "jira_user": "user",
+  "jira_pwd": "pwd",
+
+  // list of drivers installed when running 'install_drivers'
+  "jdbc_drivers": [
+    "https://repository.mulesoft.org/nexus/content/repositories/public/com/amazon/redshift/redshift-jdbc42-no-awssdk/1.2.34.1058/redshift-jdbc42-no-awssdk-1.2.34.1058.jar",
+    "https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.48/mysql-connector-java-5.1.48.jar"
+  ]
+
+
+}

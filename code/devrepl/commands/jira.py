@@ -10,15 +10,6 @@ from . import ReplCommand
 
 class Jira(ReplCommand):
 
-    def do_init_jira(self, arg):
-        url = input("Jira URL (default https://jira.pentaho.com): ")
-        if len(url) > 4:
-            self.session['jira_url'] = url
-        else:
-            self.session['jira_url'] = 'https://jira.pentaho.com'
-
-        self.session['jira_user'] = input('Username:  ')
-        self.session['jira_pwd'] = input('Password:  ')
 
     def do_jira(self, arg):
         if arg.startswith('b'):
@@ -33,8 +24,8 @@ class Jira(ReplCommand):
                 out.info("  -->  https://jira.pentaho.com/browse/" + issue.key)
 
     def get_open_issues(self):
-        jira = JIRA({'server': self.session['jira_url']},
-                    basic_auth=(self.session['jira_user'], self.session['jira_pwd']))
+        jira = JIRA({'server': self.settings['jira_url']},
+                    basic_auth=(self.settings['jira_user'], self.settings['jira_pwd']))
         open_issues = jira.search_issues('assignee = currentUser() and Resolution = Unresolved')
         return open_issues
 

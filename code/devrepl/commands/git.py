@@ -36,7 +36,7 @@ class Git(ReplCommand):
 
     def do_pull_all_clean(self, arg):
         'Walks the project dir, issuing a pull on master if no local changes detected.'
-        tree_actions(self.session['proj_dir'],
+        tree_actions(self.settings['proj_dir'],
                      (lambda direntry: direntry.path.endswith('/.git'),
                       lambda direntry: self.pull_master(direntry.path)), maxdepth=5)
 

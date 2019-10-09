@@ -12,17 +12,11 @@ from . import pentaho
 
 class Box(ReplCommand):
 
-    def do_set_box_info(self, arg):
-        self.session['box_host'] = input('Box FTPS Server (ftp.box.com):')
-        self.session['box_user'] = input('Box Username:')
-        self.session['box_pwd'] = input('Box Password:')
-        self.session['ci_root'] = input('CI Root Dir (e.g. /CI/9.0-QAT/):')
-        self.session['bi_version'] = input('BI version (e.g. 9.0.0.0):')
 
     def do_get_qat(self, arg):
-        ftps = FTP_TLS(host=self.session['box_host'], user=self.session['box_user'], passwd=self.session['box_pwd'])
+        ftps = FTP_TLS(host=self.settings['box_host'], user=self.settings['box_user'], passwd=self.settings['box_pwd'])
 
-        builds = list(ftps.mlsd(self.session['ci_root']))
+        builds = list(ftps.mlsd(self.settings['ci_root']))
         builds.sort(key=lambda entry: entry[1]['modify'], reverse=True)
 
         out.info("Retrieving build number " + builds[2][0])
@@ -31,7 +25,7 @@ class Box(ReplCommand):
         prev_build_num = builds[3][0]
 
         path_to_installer = self.path_to_installer_for_build(build_num)
-        local_filename = self.session['dot_dir'] + '/pentaho-business-analytics.app.tar.gz'
+        local_filename = self.dot_dir + '/pentaho-business-analytics.app.tar.gz'
 
         rm(local_filename)
         try:
@@ -46,8 +40,8 @@ class Box(ReplCommand):
 
 
     def path_to_installer_for_build(self, build_num):
-        filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.session['bi_version'], build_num)
-        path_to_installer = self.session['ci_root'] + build_num + "/ee/installers/" + filename
+        filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.settings['bi_version'], build_num)
+        path_to_installer = self.settings['ci_root'] + build_num + "/ee/installers/" + filename
         return path_to_installer
 
     def retrieve_file(self, ftps, local_filename, remote_filename):
@@ -60,31 +54,31 @@ class Box(ReplCommand):
         localfile.close()
 
     def do_install_qat(self, arg):
-        pentaho.stop_pentaho_server(self.session['dot_dir'] + 'qat')
-        rm_recursive(self.session['dot_dir'] + '/temp')
+        pentaho.stop_pentaho_server(self.dot_dir + 'qat')
+        rm_recursive(self.dot_dir + '/temp')
         # cmd(['find', '.', '!', '-name', "'.*'", '-maxdepth', '1', '-exec', 'rm', '-rf', '"{}"', ';'],
-        #     self.session['dot_dir'] + 'qat')
-        cmd(['rm', '-rf', self.session['dot_dir'] + 'qat'])
-        cmd(['mkdir', 'qat'], self.session['dot_dir'])
-        cmd(['mkdir', 'temp'], self.session['dot_dir'])
-        cmd(['tar', 'xvzf', 'pentaho-business-analytics.app.tar.gz', '-C', self.session['dot_dir'] + 'temp'],
-            self.session['dot_dir'])
+        #     self.dot_dir + 'qat')
+        cmd(['rm', '-rf', self.dot_dir + 'qat'])
+        cmd(['mkdir', 'qat'], self.dot_dir)
+        cmd(['mkdir', 'temp'], self.dot_dir)
+        cmd(['tar', 'xvzf', 'pentaho-business-analytics.app.tar.gz', '-C', self.dot_dir + 'temp'],
+            self.dot_dir)
 
         # find builder
         installer = [file for file in
-                     glob.iglob(self.session['dot_dir'] + 'temp/' + '**/installbuilder.sh', recursive=True)]
+                     glob.iglob(self.dot_dir + 'temp/' + '**/installbuilder.sh', recursive=True)]
         if len(installer) != 1:
             print('Couldn''t find installer.\n' + str(installer))
             return
         installer_dir = Path(installer[0]).parent.as_posix()
         cmd(['./installbuilder.sh', '--unattendedmodeui', 'minimal',
              '--mode', 'unattended', '--prefix',
-             '{}qat'.format(self.session['dot_dir']), '--debuglevel', '4', '--postgres_password', 'password',
+             '{}qat'.format(self.dot_dir), '--debuglevel', '4', '--postgres_password', 'password',
              '--installsampledata', '1'], installer_dir)
         # remove .installedLicenses so the shared one in ~/.pentaho will be used
-        cmd(['rm', self.session['dot_dir'] + 'qat/.installedLicenses.xml'])
+        cmd(['rm', self.dot_dir + 'qat/.installedLicenses.xml'])
         # skip the eula
-        cmd(['rm', self.session['dot_dir'] + 'qat/server/pentaho-server/promptuser.sh'])
+        cmd(['rm', self.dot_dir + 'qat/server/pentaho-server/promptuser.sh'])
 
 
 
