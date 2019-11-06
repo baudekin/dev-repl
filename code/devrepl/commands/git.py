@@ -1,6 +1,7 @@
+import subprocess
 from pathlib import Path
 from proc import cmd
-
+import os
 import console_output as out
 
 from treewalk import tree_actions
@@ -40,6 +41,23 @@ class Git(ReplCommand):
                      (lambda direntry: direntry.path.endswith('/.git'),
                       lambda direntry: self.pull_master(direntry.path)), maxdepth=5)
 
+    def do_fetch_all(self, arg):
+        'Walks the project dir, issuing a fetch on master.'
+        tree_actions(self.settings['proj_dir'],
+                     (lambda direntry: direntry.path.endswith('/.git'),
+                      lambda direntry: self.fetch_master(direntry.path)), maxdepth=5)
+
+    def do_gitlogs(self, arg):
+        if arg:
+            days = arg
+        else:
+            days = '4'
+        logs = []
+        tree_actions(self.settings['proj_dir'],
+                     (lambda direntry: direntry.path.endswith('/.git'),
+                      lambda direntry: self.logs(direntry.path, logs, days)), maxdepth=5)
+        out.table('Changes in the past {} days'.format(days), rows=logs)
+
     def git_dir_is_clean(self, dir):
         res = cmd(['git', "--work-tree=" + dir, "--git-dir=" + dir + "/.git", "status", "--porcelain"], dir)
         return len(str(res).split('\\n')) == 1
@@ -56,6 +74,43 @@ class Git(ReplCommand):
     def upstream_exists(self, path):
         upstream_check = ['git', 'config', 'remote.upstream.url']
         return len(str(cmd(upstream_check, path))) > 4
+
+    def logs(self, path, log_accum, days):
+        branches = cmd(['git', 'branch', '-a'], path, display=False)
+
+        if 'upstream/master' not in str(branches):
+            # only look for changes on upstream/master branch
+            return
+       # cmd(['git', 'fetch', 'upstream', 'master'], path, display=False)
+        url = cmd(['git', 'remote', 'get-url', 'upstream'], path, display=False, stderr=None)
+
+        if len(url) > 0:
+            url = url[0].decode('utf-8')
+            url = url.replace('.git', '').replace('\n', '').replace('git://', 'https://')
+
+        path = path[:-4]
+        logcmd = ['git', 'log', '--since="{} days ago"'.format(days),
+                  '--format=%an!$' + url + '/commit/%h!$%ad!$%s',
+                  '--no-merges',
+                  '--date=relative',
+                  'upstream/master']
+        logs = cmd(logcmd, path, display=True, stderr=None)
+        if len(logs) > 0 and len(logs[0]) > 5:
+            logs = logs[0].decode("utf-8").split('\n')
+        else:
+            return []
+        logs = [tuple([os.path.basename(path[:-1])] + row.split('!$')) for row in logs if len(row) > 5]
+        # print(str(logs))
+        log_accum += logs
+
+    def fetch_master(self, path):
+        path = path[:-4]
+        if self.upstream_exists(path):
+            fum = ['git', 'fetch', 'upstream', 'master']
+            out.print_command(fum)
+            cmd(fum, path)
+        else:
+            print('{} Has no upstream.  Not fetching'.format(path))
 
     def pull_master(self, path):
         path = path[:-4]

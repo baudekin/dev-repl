@@ -11,6 +11,7 @@ from pathlib import Path
 import console_output as out
 import json
 from shutil import copyfile
+import sys
 
 
 def get_repl(command_list):
@@ -92,14 +93,22 @@ import signal
 def handler(signum, frame):
     pass
 
+def startup(repl):
+    repl.loadstate()
+    if len(sys.argv) > 2 and sys.argv[1] == '-c':
+        # run one or more noarg commands and exit
+        for cmd in sys.argv[2:]:
+            getattr(repl, 'do_%s' % cmd)(None)
+    else:
+        repl.cmdloop()
+
 
 signal.signal(signal.SIGINT, handler)
 
 repl = get_repl([Mvn, Git, ProjectInfo, Box, Pentaho, Jira])
 
 if not repl.first_run():
-    repl.loadstate()
-    repl.cmdloop()
+    startup(repl)
 
 
 

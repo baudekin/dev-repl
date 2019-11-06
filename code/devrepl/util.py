@@ -3,7 +3,7 @@ from colorama import Fore, Back, Style, init
 import console_output as out
 from proc import cmd
 import requests
-import subprocess
+from dateutil.parser import *
 
 # def jstat():
 #     result = subprocess.run(['jstat', '-gc', '94079'], stdout=subprocess.PIPE)
@@ -36,6 +36,9 @@ def httpget(url, destination):
     if not resp.headers['content-length']:
         out.error("Couldn't load " + url)
         return
+    lastmodified = None
+    if resp.headers['Last-modified']:
+        lastmodified = resp.headers['Last-modified']
     twopercent = float(resp.headers['content-length']) * .02
     cur = 0
     print(url + '=>' + destination)
@@ -49,3 +52,4 @@ def httpget(url, destination):
             fd.write(chunk)
 
     print(Fore.RESET + Back.RESET + Style.RESET_ALL + '->]\nCOMPLETED')
+    return parse(lastmodified)

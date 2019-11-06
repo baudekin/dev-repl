@@ -1,0 +1,7 @@
+#!/usr/local/bin/fish
+
+set DIR (cd (dirname (status -f)); and pwd)
+pushd $DIR/code/devrepl
+conda activate repl
+python repl.py $argv
+popd

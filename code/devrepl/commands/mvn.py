@@ -9,6 +9,9 @@ class Mvn(ReplCommand):
         'clean', 'install', '-DrunITs', '-DskipTests', 'site', 'dependency:tree'
     )
 
+    def do_debug_test(self, arg):
+        cmd(["mvn", "-o", "-Dmaven.surefire.debug", "test", "-f", self.session['curproj'][1], '-Dtest=' + arg], stdout=None)
+
     def do_b(self, arg):
         'Build current project.  Add the argument "st" to skip tests'
         build = ["mvn", "clean", "install", "-f", self.session['curproj'][1]]
