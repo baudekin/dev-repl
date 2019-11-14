@@ -81,7 +81,6 @@ class Git(ReplCommand):
         if 'upstream/master' not in str(branches):
             # only look for changes on upstream/master branch
             return
-       # cmd(['git', 'fetch', 'upstream', 'master'], path, display=False)
         url = cmd(['git', 'remote', 'get-url', 'upstream'], path, display=False, stderr=None)
 
         if len(url) > 0:
@@ -94,13 +93,13 @@ class Git(ReplCommand):
                   '--no-merges',
                   '--date=relative',
                   'upstream/master']
-        logs = cmd(logcmd, path, display=True, stderr=None)
+        logs = cmd(logcmd, path, display=False, stderr=None)
         if len(logs) > 0 and len(logs[0]) > 5:
             logs = logs[0].decode("utf-8").split('\n')
         else:
             return []
-        logs = [tuple([os.path.basename(path[:-1])] + row.split('!$')) for row in logs if len(row) > 5]
-        # print(str(logs))
+        logs = [tuple(row.split('!$')) for row in logs if len(row) > 5]
+        logs = [(r[:2] + (r[3][0:70],)) for r in logs]  # trim the commit description
         log_accum += logs
 
     def fetch_master(self, path):

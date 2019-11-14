@@ -1,5 +1,5 @@
 from colorama import Fore, Back, Style, init
-from terminaltables import AsciiTable, DoubleTable, SingleTable
+from terminaltables import AsciiTable, DoubleTable, SingleTable, GithubFlavoredMarkdownTable
 
 init(autoreset=True)
 
@@ -53,9 +53,9 @@ def table(title, header=None, rows=[]):
     else:
         tabdata = rows
 
-    table_instance = AsciiTable(tabdata, title)
+    table_instance = DoubleTable(tabdata, title)
     table_instance.outer_border = True
     table_instance.inner_heading_row_border = False
-    table_instance.inner_column_border = False
+    table_instance.inner_column_border = True
 
     print(table_instance.table)

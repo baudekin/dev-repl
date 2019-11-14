@@ -21,7 +21,10 @@
   // list of snapshot zips to download and install
   "snapshot_zips": [
     "http://build.pentaho.net/hosted/9.0.0.0-SNAPSHOT/latest/pdi-ee-client-9.0.0.0-SNAPSHOT.zip"
-  ]
+  ],
+
+  // used by the jira command to retrieve assigned cases, or parent cases of assigned subtasks
+  "jira_jql" : "issuefunction in parentsOf( 'assignee = currentUser() and resolution = Unresolved') OR ( assignee = currentUser() and resolution = Unresolved and type != Sub-task )"
 
 
 }
