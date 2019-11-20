@@ -3,13 +3,12 @@ from git import Repo
 import datetime
 from jira import JIRA
 import webbrowser
-import console_output as out
+from .. import console_output as out
 
 from . import ReplCommand
 
 
 class Jira(ReplCommand):
-
 
     def do_jira(self, arg):
         jira_url = self.settings['jira_url']
@@ -19,7 +18,8 @@ class Jira(ReplCommand):
             webbrowser.open(jira_url + '/issues/?jql=' + jql)
         else:
             open_issues = self.get_open_issues()
-            cases = [(issue.key, issue.fields.issuetype, issue.fields.summary, jira_url + "/browse/" + issue.key) for issue in open_issues]
+            cases = [(issue.key, issue.fields.issuetype, issue.fields.summary, jira_url + "/browse/" + issue.key) for
+                     issue in open_issues]
             out.table("Active Cases", rows=cases)
 
     def get_open_issues(self):
@@ -31,4 +31,3 @@ class Jira(ReplCommand):
 
     def prompt_str(self):
         return None
-

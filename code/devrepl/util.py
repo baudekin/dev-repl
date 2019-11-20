@@ -1,29 +1,23 @@
 from pathlib import Path
-from colorama import Fore, Back, Style, init
-import console_output as out
-from proc import cmd
+from colorama import Fore, Back, Style
+import devrepl.console_output as out
+from devrepl.proc import cmd
 import requests
 from dateutil.parser import *
 
-# def jstat():
-#     result = subprocess.run(['jstat', '-gc', '94079'], stdout=subprocess.PIPE)
-#     return ','.join(str(result.stdout).split("\\n")[1].split())
-#
-# jstat()
 
 def rm(path):
     if Path(path).exists() and Path(path).is_absolute():
         cmd(["rm", path], ".")
 
 
-
 def rm_recursive(path):
     if Path(path).exists() and Path(path).is_absolute():
-        cmd(["rm", '-rf',  path], '.')
+        cmd(["rm", '-rf', path], '.')
 
 
 def replace_in_file(filename, search, replace):
-    with open(filename, 'r') as file :
+    with open(filename, 'r') as file:
         content = file.read()
         content = content.replace(search, replace)
     if content:
@@ -36,20 +30,20 @@ def httpget(url, destination):
     if not resp.headers['content-length']:
         out.error("Couldn't load " + url)
         return
-    lastmodified = None
+    last_modified = None
     if resp.headers['Last-modified']:
-        lastmodified = resp.headers['Last-modified']
-    twopercent = float(resp.headers['content-length']) * .02
+        last_modified = resp.headers['Last-modified']
+    two_percent = float(resp.headers['content-length']) * .02
     cur = 0
     print(url + '=>' + destination)
     print('[<-' + Back.LIGHTBLUE_EX + Fore.BLACK + Style.BRIGHT + '#', end='', flush=True)
     with open(destination, 'wb') as fd:
         for chunk in resp.iter_content(chunk_size=128):
             cur += 128
-            if (cur > twopercent):
+            if cur > two_percent:
                 cur = 0
                 print('#', end='', flush=True)
             fd.write(chunk)
 
     print(Fore.RESET + Back.RESET + Style.RESET_ALL + '->]\nCOMPLETED')
-    return parse(lastmodified)
+    return parse(last_modified)

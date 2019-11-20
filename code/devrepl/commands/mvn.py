@@ -1,7 +1,7 @@
 import subprocess
-import console_output as out
+from .. import console_output as out
 from . import ReplCommand
-from proc import cmd
+from .. proc import cmd
 
 class Mvn(ReplCommand):
 

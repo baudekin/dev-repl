@@ -1,14 +1,14 @@
 import pickle
 
-from commands.mvn import Mvn
-from commands.projectinfo import ProjectInfo
-from commands.git import Git
-from commands.box import Box
-from commands.jira import Jira
-from commands.pentaho import Pentaho
-from commands import ReplCommand
+from devrepl.commands.mvn import Mvn
+from devrepl.commands.projectinfo import ProjectInfo
+from devrepl.commands.git import Git
+from devrepl.commands.box import Box
+from devrepl.commands.jira import Jira
+from devrepl.commands.pentaho import Pentaho
+from devrepl.commands import ReplCommand
 from pathlib import Path
-import console_output as out
+import devrepl.console_output as out
 import json
 from shutil import copyfile
 import sys
@@ -65,7 +65,7 @@ def get_repl(command_list):
                         self.session = pickle.load(fp)
                 except:
                     print('failed to load prev session')
-            self.invoke_on_each_cmd("startup", lambda s:  None)
+            self.invoke_on_each_cmd("startup", lambda s: None)
 
         def first_run(self):
             if not Path(self.dot_dir).exists():
@@ -93,6 +93,7 @@ import signal
 def handler(signum, frame):
     pass
 
+
 def startup(repl):
     repl.loadstate()
     if len(sys.argv) > 2 and sys.argv[1] == '-c':
@@ -109,6 +110,3 @@ repl = get_repl([Mvn, Git, ProjectInfo, Box, Pentaho, Jira])
 
 if not repl.first_run():
     startup(repl)
-
-
-

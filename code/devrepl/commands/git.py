@@ -1,10 +1,10 @@
 import subprocess
 from pathlib import Path
-from proc import cmd
+from .. proc import cmd
 import os
-import console_output as out
+from .. import console_output as out
 
-from treewalk import tree_actions
+from .. treewalk import tree_actions
 
 from . import ReplCommand
 

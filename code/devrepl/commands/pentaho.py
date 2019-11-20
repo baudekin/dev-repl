@@ -1,16 +1,14 @@
 import glob
 import os
 import subprocess
-import urllib
 import zipfile
 from pathlib import Path
 from shutil import rmtree, copyfile, move
-from util import replace_in_file, httpget
-import console_output as out
-from proc import cmd
+from .. util import replace_in_file, httpget
+from .. import console_output as out
+from .. proc import cmd
 from . import ReplCommand
 from datetime import date
-import requests
 
 
 class Pentaho(ReplCommand):

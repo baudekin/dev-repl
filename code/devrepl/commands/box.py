@@ -3,9 +3,9 @@ from ftplib import FTP_TLS
 from pathlib import Path
 
 from tqdm import tqdm
-from proc import cmd
-from util import rm, rm_recursive
-import console_output as out
+from ..proc import cmd
+from ..util import rm, rm_recursive
+from .. import console_output as out
 from . import ReplCommand
 from . import pentaho
 

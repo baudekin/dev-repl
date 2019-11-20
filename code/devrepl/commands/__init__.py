@@ -1,6 +1,5 @@
 import cmd, inspect
-
-import commands
+from . import *
 
 class ReplCommand(cmd.Cmd):
 
@@ -14,10 +13,3 @@ class ReplCommand(cmd.Cmd):
     def desc(self):
         return "base Repl"
 
-
-
-def get_commands():
-    classes = []
-    for child_module in inspect.getmembers(commands, inspect.ismodule):
-        classes += [clazz[1] for clazz in inspect.getmembers(child_module[1], inspect.isclass) if issubclass(clazz[1], ReplCommand) and not(clazz[1] == ReplCommand)]
-    return classes

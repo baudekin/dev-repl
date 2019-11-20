@@ -4,7 +4,7 @@ import sqlite3
 import xml.etree.ElementTree
 import re
 from pathlib import Path
-import console_output as out
+from .. import console_output as out
 
 
 def find_pom_dir(path):
