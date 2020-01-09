@@ -4,9 +4,9 @@ import subprocess
 import zipfile
 from pathlib import Path
 from shutil import rmtree, copyfile, move
-from .. util import replace_in_file, httpget
+from ..util import replace_in_file, httpget
 from .. import console_output as out
-from .. proc import cmd
+from ..proc import cmd
 from . import ReplCommand
 from datetime import date
 
@@ -22,17 +22,24 @@ class Pentaho(ReplCommand):
             suspend = 'y'
         else:
             suspend = 'n'
+        opts = {}
+        debug = 'debug' in arg
 
         out.highlighted('Enabling karaf ssh')
         replace_in_file(self.get_data_integration_dir() + '/system/karaf/etc/org.apache.karaf.features.cfg',
                         'featuresBoot=\\', 'featuresBoot=ssh,\\')
 
-        self.exec_with_debug(self.get_spoon_path(), self.get_spoon_log_path(), suspend=suspend)
+        self.exec_with_debug(self.get_spoon_path(debug=debug), self.get_spoon_log_path(), suspend=suspend,
+                             extra_env=opts)
 
     def do_pentaho_server(self, arg):
-        start_stop_dir = self.dot_dir + 'qat'
-        stop_pentaho_server(start_stop_dir)
-        self.exec_with_debug(start_stop_dir + '/server/pentaho-server/start-pentaho-debug.sh',
+        pen_server = self.get_pentaho_server_dir()
+
+        out.highlighted('Enabling karaf ssh')
+        replace_in_file(pen_server + '/pentaho-solutions/system/karaf/etc/org.apache.karaf.features.cfg',
+                        'featuresBoot=\\', 'featuresBoot=ssh,\\')
+
+        self.exec_with_debug(pen_server + '/start-pentaho-debug.sh',
                              self.get_server_log_path(), debug_port=8044)
 
     def do_carte(self, arg):
@@ -50,7 +57,7 @@ class Pentaho(ReplCommand):
         env.update(extra_env)
         log = open(log_path, 'a')
         wd = exec_path if type(exec_path) is str else exec_path[0]
-
+        out.info(env)
         subprocess \
             .Popen(exec_path,
                    cwd=Path(wd).parent,
@@ -81,8 +88,12 @@ class Pentaho(ReplCommand):
     def get_server_log_path(self):
         return self.dot_dir + 'qat/server/pentaho-server/tomcat/logs/catalina.out'
 
-    def get_spoon_path(self):
-        return self.get_data_integration_dir() + '/spoon.sh'
+    def get_spoon_path(self, debug=False):
+        if debug:
+            spoon_cmd = '/SpoonDebug.sh'
+        else:
+            spoon_cmd = '/spoon.sh'
+        return self.get_data_integration_dir() + spoon_cmd
 
     def get_data_integration_dir(self):
         if 'active_pentaho' in self.session and self.session['active_pentaho'] == 'ss':
@@ -143,6 +154,10 @@ class Pentaho(ReplCommand):
         self.load_drivers_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
 
     def do_install_bundle(self, arg):
+        if self.get_active_pen()[0] != 'ss':
+            response = input("QAT is currently active, are you sure you want to install a bundle? (y/n)")
+            if response.lower() != 'y':
+                return
         self.move_artifact_to(self.get_data_integration_dir() + "/system/karaf/deploy/")
         self.move_artifact_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/")
 
@@ -228,13 +243,16 @@ class Pentaho(ReplCommand):
         Path(self.dot_dir, "ss").mkdir()
         for item in self.settings['snapshot_zips']:
             zip = self.dot_dir + item.rsplit('/', 1).pop()
-            cmd(["unzip", "-d", Path(self.dot_dir, "ss").as_posix(), zip])
+            cmd(["unzip", "-o", "-d", Path(self.dot_dir, "ss").as_posix(), zip])
 
     def do_qat(self, arg):
         self.session['active_pentaho'] = 'qat'
 
     def do_snapshot(self, arg):
         self.session['active_pentaho'] = 'ss'
+
+    def do_foo(self, arg):
+        print("foo")
 
     def do_get_snapshot(self, arg):
         dest = self.dot_dir

@@ -25,6 +25,12 @@ def get_repl(command_list):
             if not Path(self.dot_dir).exists():
                 Path(self.dot_dir).mkdir()
 
+        def do_help(self, arg):
+            if arg:
+                super(type(self), self).do_help(arg)
+            c = [(name[3:], getattr(self, name).__doc__) for name in self.get_names() if name.startswith('do_')]
+            out.table("Commands", rows=c)
+
         def emptyline(self):
             pass
 
@@ -34,6 +40,17 @@ def get_repl(command_list):
         def postcmd(self, stop, line):
             self.init_prompt()
             self.savestate()
+
+        def precmd(self, line):
+            line = line.strip()
+            parts = line.split()
+
+            if len(parts) == 0:
+                return ""
+
+            if parts[0] in self.settings['aliases']:
+                parts[0] = self.settings['aliases'][parts[0]]
+            return " ".join(parts)
 
         def prompt_str(self):
             return ""

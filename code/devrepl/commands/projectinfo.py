@@ -22,7 +22,6 @@ class ProjectInfo(ReplCommand):
             print("Loading project info, please wait.")
             self.do_projectinfo_sync(None)
 
-
     def do_class_info(self, arg):
         conn = self.connect_devrepl_db()
         rows = conn.execute(
@@ -97,11 +96,8 @@ class ProjectInfo(ReplCommand):
         conn.commit()
         conn.close()
 
-    def do_sp(self, arg):
-        if 'curproj' in self.session:
-            curproj = self.session['curproj']
-        else:
-            curproj = None
+    def switch_project_sql(self, arg):
+        curproj = self.get_cur_project()
         if arg == '..':
             curpom = Path(curproj[1])
             parentpom = Path(curpom.parent.parent, 'pom.xml').as_posix()
@@ -111,6 +107,17 @@ class ProjectInfo(ReplCommand):
                 0] + "' order by lastaccessed desc limit 1"
         else:
             sql = "select proj, pom from projects where proj = '" + arg + "'"
+        return sql
+
+    def get_cur_project(self):
+        if 'curproj' in self.session:
+            curproj = self.session['curproj']
+        else:
+            curproj = None
+        return curproj
+
+    def do_switch_project(self, arg):
+        sql = self.switch_project_sql(arg)
         conn = self.connect_devrepl_db()
         curs = conn.cursor()
         rows = conn.execute(sql)
@@ -122,31 +129,31 @@ class ProjectInfo(ReplCommand):
             proj_matches = [row for row in rows]
         if len(proj_matches) == 0:
             print('Project {} not found'.format(arg))
-        elif len(proj_matches) > 0:
-            if len(proj_matches) == 1:
-                verify = 'Y'
-            else:
-                verify = input('Selecting {}.  \nY/N/A (Yes/No/Alternatives) ?>'.format(proj_matches[0][1]))
+            conn.close()
+            return
+        if len(proj_matches) == 1:
+            verify = 'Y'
+        else:
+            verify = input('Selecting {}.  \nY/N/A (Yes/No/Alternatives) ?> '.format(proj_matches[0][1]))
 
-            if verify.upper() == 'Y':
-                curs.execute(
-                    "update projects set lastaccessed = CURRENT_TIMESTAMP where proj = ?", (proj_matches[0][0],))
-                self.session['curproj'] = proj_matches[0]
-            if verify.upper() == 'A':
-                i = 1
-                for proj in proj_matches[:10]:
-                    print('{}:  {}'.format(i, proj))
-                    i += 1
-                inputnum = input('Selection:  ')
-                proj_index = int(inputnum) - 1
-                self.session['curproj'] = proj_matches[proj_index]
-                curs.execute(
-                    "update projects set lastaccessed = CURRENT_TIMESTAMP where proj = ?",
-                    (proj_matches[proj_index][0],))
+        if verify.upper() == 'Y':
+            curs.execute(
+                "update projects set lastaccessed = CURRENT_TIMESTAMP where proj = ?", (proj_matches[0][0],))
+            self.session['curproj'] = proj_matches[0]
+        if verify.upper() == 'A':
+            strip_len = len(self.settings['proj_dir'])
+            out.table("Matching Projects",
+                      rows=[(i, val[0], val[1][strip_len:]) for i, val in enumerate(proj_matches[:20])])
+            inputnum = input('Selection:  ')
+            proj_index = int(inputnum)
+            self.session['curproj'] = proj_matches[proj_index]
+            curs.execute(
+                "update projects set lastaccessed = CURRENT_TIMESTAMP where proj = ?",
+                (proj_matches[proj_index][0],))
         conn.commit()
         conn.close()
 
-    def do_lcp(self, arg):
+    def do_list_child_projects(self, arg):
         '''
         Lists child maven projects below the currently selected project
         '''

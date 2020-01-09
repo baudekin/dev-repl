@@ -77,6 +77,7 @@ class Box(ReplCommand):
              '--installsampledata', '1'], installer_dir)
         # remove .installedLicenses so the shared one in ~/.pentaho will be used
         cmd(['rm', self.dot_dir + 'qat/.installedLicenses.xml'])
+        cmd(['cp', Path.home().as_posix() + '/.pentaho/.installedLicenses.xml', '.'])
         # skip the eula
         cmd(['rm', self.dot_dir + 'qat/server/pentaho-server/promptuser.sh'])
 

@@ -24,7 +24,17 @@
   ],
 
   // used by the jira command to retrieve assigned cases, or parent cases of assigned subtasks
-  "jira_jql" : "issuefunction in parentsOf( 'assignee = currentUser() and resolution = Unresolved') OR ( assignee = currentUser() and resolution = Unresolved and type != Sub-task )"
+  "jira_jql" : "issuefunction in parentsOf( 'assignee = currentUser() and resolution = Unresolved') OR ( assignee = currentUser() and resolution = Unresolved and type != Sub-task )",
+
+  "aliases" : {
+    "j" : "jira",
+    "gs" : "git stash",
+    "g" : "git",
+    "gpo": "git push origin HEAD",
+    "mdt": "mvn dependency:tree",
+    "sp": "switch_project",
+    "lcp": "list_child_projects"
+  }
 
 
 }

@@ -42,18 +42,13 @@ def prompt_format(prompts):
     return promptstr + '\n' + Fore.MAGENTA + prompts[-1]
 
 
-def table(title, header=None, rows=[]):
+def table(title, rows=[]):
     print(Style.RESET_ALL)
 
     if len(rows) > 0 and type(rows[0]) != tuple:
-        rows = [(row,) for row in rows]
-    if header and len(header) > 0:
-        header = [Fore.YELLOW + item + Fore.RESET for item in header]
-        tabdata = [header, rows]
-    else:
-        tabdata = rows
+        rows = [[row, ] for row in rows]
 
-    table_instance = DoubleTable(tabdata, title)
+    table_instance = DoubleTable(rows, Fore.YELLOW + title + Fore.RESET)
     table_instance.outer_border = True
     table_instance.inner_heading_row_border = False
     table_instance.inner_column_border = True
