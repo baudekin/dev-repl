@@ -1,10 +1,10 @@
 import subprocess
 from pathlib import Path
-from .. proc import cmd
+from ..proc import cmd
 import os
 from .. import console_output as out
 
-from .. treewalk import tree_actions
+from ..treewalk import tree_actions
 
 from . import ReplCommand
 
@@ -81,7 +81,7 @@ class Git(ReplCommand):
         if 'upstream/master' not in str(branches):
             # only look for changes on upstream/master branch
             return
-        url = cmd(['git', 'remote', 'get-url', 'upstream'], path, display=False, stderr=None)
+        url = cmd(['git', 'remote', 'get-url', 'upstream'], path, display=False)
 
         if len(url) > 0:
             url = url[0].decode('utf-8')
@@ -93,7 +93,7 @@ class Git(ReplCommand):
                   '--no-merges',
                   '--date=relative',
                   'upstream/master']
-        logs = cmd(logcmd, path, display=False, stderr=None)
+        logs = cmd(logcmd, path, display=False)
         if len(logs) > 0 and len(logs[0]) > 5:
             logs = logs[0].decode("utf-8").split('\n')
         else:
@@ -122,3 +122,88 @@ class Git(ReplCommand):
             cmd(pum, path)
         else:
             print('{} is not in a clean state.  Not updating'.format(path))
+
+    @staticmethod
+    def git_upstream_url(path):
+        url = cmd(['git', 'remote', 'get-url', 'upstream'], path, display=False)
+        if len(url) > 0:
+            url = url[0].decode('utf-8')
+            url = url.replace('.git', '').replace('\n', '').replace('git://', 'https://')
+        return url
+
+    def do_load_logs(self, arg):
+        tree_actions(self.settings['proj_dir'],
+                     (lambda direntry: direntry.path.endswith('/.git'),
+                      lambda direntry: self.load_logs(direntry.path)), maxdepth=5)
+
+    def load_logs(self, path):
+        path = path[:-4]
+        out.info("Loading logs for " + path)
+        project_name = Path(path).name
+        logs = Git.flattened_logs(path)
+        if not logs:
+            out.info("No logs found for " + path)
+            return
+
+        conn = self.connect_devrepl_db()
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS logs
+        (commit_date timestamp, author text, github_url text, summary text, body text, jira_case text, changed_file text, git_project text)
+        ''')
+        c.execute("delete from logs where git_project = '{}'".format(project_name))
+        for entry in logs:
+            try:
+                insert = '''INSERT INTO logs (commit_date, author, github_url, summary, body, jira_case, changed_file, git_project) VALUES
+                ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')
+                '''.format(*entry, project_name)
+                c.execute(insert)
+            except:
+                print(insert)
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def flattened_logs(path):
+        branches = cmd(['git', 'branch', '-a'], path, display=False)
+
+        if 'upstream/master' not in str(branches):
+            # only look for changes on upstream/master branch
+            return
+
+        url = Git.git_upstream_url(path)
+
+        logcmd = ['git', 'log',
+                  '--format=!+$+%cI!$%an!$' + url + '/commit/%h!$%s!$%b!-$',
+                  '--no-merges',
+                  # '--date=relative',
+                  '--name-only',
+                  'upstream/master']
+        logs = cmd(logcmd, path, display=True)
+
+        if len(logs) > 0 and len(logs[0]) > 5:
+            logs = logs[0].decode(encoding='utf-8', errors='ignore').replace("'", "''").split('!+$')[1:]
+            logs = [[part[0], part[1]] for part in [commit.split('!-$') for commit in logs]]
+        parsed_logs = []
+
+        for commit_lines in logs:
+            # log lines will start with +
+            cur_log_entry = Git.prepare_log_entry(commit_lines[0].split('!$'))
+            for file in commit_lines[1].split('\n'):
+                if len(file.strip()) > 0:
+                    entry = cur_log_entry.copy()
+                    entry.append(file)
+                    parsed_logs.append(entry)
+
+        return parsed_logs
+
+    @staticmethod
+    def prepare_log_entry(log_entry):
+        """
+        """
+        log_entry[4] = log_entry[4].replace("$n!", "\n")
+        summary = log_entry[3]
+        jira_case = ''
+        if summary.startswith('[') and summary.find(']') > 1:
+            jira_case = summary[:summary.find(']') + 1]
+        log_entry.append(jira_case)
+        return log_entry

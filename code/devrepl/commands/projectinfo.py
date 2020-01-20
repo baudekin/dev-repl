@@ -58,10 +58,6 @@ class ProjectInfo(ReplCommand):
             print("failed to parse " + pom)
         return proj
 
-    def connect_devrepl_db(self):
-        conn = sqlite3.connect(self.dot_dir + 'devrepl.db')
-        return conn
-
     def do_classinfo_sync(self, arg):
         conn = self.connect_devrepl_db()
         c = conn.cursor()

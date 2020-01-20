@@ -1,4 +1,5 @@
 import pickle
+import sqlite3
 
 from devrepl.commands.mvn import Mvn
 from devrepl.commands.projectinfo import ProjectInfo
@@ -66,6 +67,10 @@ def get_repl(command_list):
         def do_list_commands(self, args):
             for command in command_list:
                 print(command().desc())
+
+        def connect_devrepl_db(self):
+            conn = sqlite3.connect(self.dot_dir + 'devrepl.db')
+            return conn
 
         def savestate(self):
             with open(self.dot_dir + '/session', 'wb') as fp:
