@@ -5,6 +5,7 @@ import xml.etree.ElementTree
 import re
 from pathlib import Path
 from .. import console_output as out
+from .. import treewalk as tree
 
 
 def find_pom_dir(path):
@@ -38,12 +39,16 @@ class ProjectInfo(ReplCommand):
         c.execute('DROP TABLE IF EXISTS projects')
         c.execute('''CREATE TABLE IF NOT EXISTS projects
              (pom text, proj text, lastaccessed timestamp)''')
-        poms = [file for file in glob.iglob(self.settings['proj_dir'] + '/' + '**/pom.xml', recursive=True)]
-        print('Found {} pom files.'.format(len(poms)))
-        for pom in poms:
+
+        def record_project(pomx):
+            pom = pomx.path
+            out.info("Loading info for %s" % pom)
             proj = self.proj_name_from_pom(pom)
             c.execute("INSERT INTO projects (pom, proj) VALUES (?, ?)", (pom, proj))
-        conn.commit()
+            conn.commit()
+
+        tree.tree_actions(self.settings['proj_dir'], lambda entry: entry.path.endswith('pom.xml'),
+                          record_project)
         conn.close()
 
     def proj_name_from_pom(self, pom):
@@ -113,6 +118,7 @@ class ProjectInfo(ReplCommand):
         return curproj
 
     def do_switch_project(self, arg):
+        """Sets the project to have in context."""
         sql = self.switch_project_sql(arg)
         conn = self.connect_devrepl_db()
         curs = conn.cursor()
@@ -150,9 +156,7 @@ class ProjectInfo(ReplCommand):
         conn.close()
 
     def do_list_child_projects(self, arg):
-        '''
-        Lists child maven projects below the currently selected project
-        '''
+        """Lists child maven projects below the currently selected project"""
         poms = [file for file in
                 glob.iglob(Path(self.session['curproj'][1]).parent.as_posix() + '/' + '**/pom.xml', recursive=False)]
         out.table(self.session['curproj'][0], rows=[self.proj_name_from_pom(pom) for pom in poms])
@@ -165,9 +169,6 @@ class ProjectInfo(ReplCommand):
         proj_matches = [row[0] for row in rows]
         offs = len(mline) - len(text)
         return [s[offs:] for s in proj_matches]
-
-    def desc(self):
-        return "Commands for interacting with maven projects.";
 
     def prompt_str(self):
         if self.session.get('curproj'):

@@ -1,8 +1,9 @@
 import pickle
 import sqlite3
 
-from devrepl.commands.mvn import Mvn
+
 from devrepl.commands.projectinfo import ProjectInfo
+from devrepl.commands.mvn import Mvn
 from devrepl.commands.git import Git
 from devrepl.commands.box import Box
 from devrepl.commands.jira import Jira
@@ -13,6 +14,7 @@ import devrepl.console_output as out
 import json
 from shutil import copyfile
 import sys
+import os
 
 
 def get_repl(command_list):
@@ -94,7 +96,8 @@ def get_repl(command_list):
                 print("Starting devrepl for the first time.")
                 print("Creating directory " + self.dot_dir)
                 Path(self.dot_dir).mkdir()
-                copyfile("settings.json", self.dot_dir + "settings.json")
+                copyfile(Path(os.path.abspath(__file__)).parent.as_posix() + "/settings.json",
+                         self.dot_dir + "settings.json")
                 print("Edit the file " + self.dot_dir + "settings.json, and then restart.")
                 return True
             else:

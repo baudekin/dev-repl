@@ -9,6 +9,7 @@ from .. import console_output as out
 from ..proc import cmd
 from . import ReplCommand
 from datetime import date
+import sys
 
 
 class Pentaho(ReplCommand):
@@ -18,6 +19,7 @@ class Pentaho(ReplCommand):
             self.session['active_pentaho'] = 'qat'
 
     def do_spoon(self, arg):
+        """Starts spoon, with debug port 5006.  enables karaf ssh automatically."""
         if 'suspend' in arg:
             suspend = 'y'
         else:
@@ -31,6 +33,9 @@ class Pentaho(ReplCommand):
 
         self.exec_with_debug(self.get_spoon_path(debug=debug), self.get_spoon_log_path(), suspend=suspend,
                              extra_env=opts)
+
+    def do_report_designer(self, arg):
+            self.exec_with_debug(self.get_pentaho_reporting_dir() + '/report-designer.sh', self.get_reporting_log_path())
 
     def do_pentaho_server(self, arg):
         pen_server = self.get_pentaho_server_dir()
@@ -59,28 +64,35 @@ class Pentaho(ReplCommand):
         wd = exec_path if type(exec_path) is str else exec_path[0]
         out.info(env)
         subprocess \
-            .Popen(exec_path,
+            .Popen(exec_path + ' >> ' + log_path,
                    cwd=Path(wd).parent,
-                   shell=False,
-                   stdout=log,
-                   stderr=log,
+                   shell=True,
+                   # stdout=log,
+                   # stderr=log,
+                   # stdin=sys.stdin,
                    env=env,
                    start_new_session=True)  # start_new_session prevents ctl-c from being passed to this proc
 
     def do_log(self, arg):
+        """tail the running spoon log.  Specify server/carte/reporting to tail their specific logs"""
         if arg == 'server':
             logpath = self.get_server_log_path()
         elif arg == 'carte':
             logpath = self.get_carte_log_path()
+        elif arg == 'reporting':
+            logpath = self.get_reporting_log_path()
         else:
             logpath = self.get_spoon_log_path()
-        cmd(['tail', '-f', '-500', logpath], shell=True, stdout=None)
+        cmd(['tail', '-f', '-n', '500', logpath], shell=True, stdout=None)
 
     def complete_log(self, text, line, begidx, endidx):
         return [i.lstrip('-') for i in ['spoon', 'server', 'carte'] if i.startswith(text) or i.startswith('-' + text)]
 
     def get_spoon_log_path(self):
         return self.dot_dir + self.session['active_pentaho'] + '/spoon.log'
+
+    def get_reporting_log_path(self):
+        return self.dot_dir + self.session['active_pentaho'] + '/prd.log'
 
     def get_carte_log_path(self):
         return self.dot_dir + self.session['active_pentaho'] + '/carte.log'
@@ -101,6 +113,13 @@ class Pentaho(ReplCommand):
         else:
             return self.dot_dir + "/qat/design-tools/data-integration"
 
+    def get_pentaho_reporting_dir(self):
+        if 'active_pentaho' in self.session and self.session['active_pentaho'] == 'ss':
+            print("snapshot doesn't load reporting")
+            return None
+        else:
+            return self.dot_dir + "/qat/design-tools/report-designer"
+
     def get_pentaho_server_dir(self):
         if 'active_pentaho' in self.session and self.session['active_pentaho'] == 'ss':
             return self.dot_dir + "/ss/pentaho-server"
@@ -108,6 +127,7 @@ class Pentaho(ReplCommand):
             return self.dot_dir + "/qat/server/pentaho-server"
 
     def do_install_plugin(self, arg):
+        """Installs legacy pentaho plugins.  use the arg 'pdi-legacy' to install PDI plugins, 'puc-legacy' for PUC"""
         dot_dir = self.dot_dir
         # find built artifacts
         if arg == 'pdi-legacy':
@@ -146,14 +166,19 @@ class Pentaho(ReplCommand):
             out.info("Done.")
 
     def do_install_lib(self, arg):
+        """Copies built jars to the PDI and PUC /lib dirs.  Not for osgi plugins."""
         self.move_artifact_to(self.get_data_integration_dir() + "/lib/")
         self.move_artifact_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
 
     def do_install_drivers(self, arg):
+        """Retrieves jdbc drivers specified in settings.json and installs in PDI, PUC and PRD."""
         self.load_drivers_to(self.get_data_integration_dir() + "/lib/")
         self.load_drivers_to(self.get_pentaho_server_dir() + "/tomcat/webapps/pentaho/WEB-INF/lib/")
+        self.load_drivers_to(self.get_pentaho_reporting_dir() + "/lib/")
+
 
     def do_install_bundle(self, arg):
+        """copies built jar(s) to the deploy directory of data-integration and pentaho-server"""
         if self.get_active_pen()[0] != 'ss':
             response = input("QAT is currently active, are you sure you want to install a bundle? (y/n)")
             if response.lower() != 'y':
@@ -162,6 +187,7 @@ class Pentaho(ReplCommand):
         self.move_artifact_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/")
 
     def do_install_kar(self, arg):
+        """copies built kar(s) to the deploy directory of data-integration and pentaho-server"""
         self.move_artifact_to(self.get_data_integration_dir() + "/system/karaf/deploy/", artifact_extension='kar')
         self.move_artifact_to(self.get_pentaho_server_dir() + "/pentaho-solutions/system/karaf/deploy/",
                               artifact_extension='kar')
@@ -196,9 +222,11 @@ class Pentaho(ReplCommand):
         cmd(set_version_cmd, stdout=None)
 
     def do_list_artifacts(self, arg):
+        """list built artifacts in current project."""
         out.highlighted(*self.get_artifacts(self.get_proj_path()))
 
     def do_lineage_on(self, arg):
+        """Turn on lineage configuration."""
         replace_in_file(self.get_data_integration_dir() + '/system/karaf/etc/pentaho.metaverse.cfg', '=off', '=on')
 
     def move_artifact_to(self, to, artifact_extension='jar'):
@@ -238,6 +266,8 @@ class Pentaho(ReplCommand):
                 if "-sources" not in str(file) and "-test" not in str(file)]
 
     def do_install_snapshot(self, arg):
+        """Installs the zips listed in the 'snapshot_zips' section of settings.json
+        Assumes `get_snapshot` has been run to retrieve those zips first."""
         if Path(self.dot_dir, "ss").exists():
             rmtree(self.dot_dir + "ss", ignore_errors=True)
         Path(self.dot_dir, "ss").mkdir()
@@ -246,15 +276,15 @@ class Pentaho(ReplCommand):
             cmd(["unzip", "-o", "-d", Path(self.dot_dir, "ss").as_posix(), zip])
 
     def do_qat(self, arg):
+        """Make QAT the active installation."""
         self.session['active_pentaho'] = 'qat'
 
     def do_snapshot(self, arg):
+        """Make snapshot the active installation."""
         self.session['active_pentaho'] = 'ss'
 
-    def do_foo(self, arg):
-        print("foo")
-
     def do_get_snapshot(self, arg):
+        """Retrieve snapshot artifacts, storing in the .devrepl directory."""
         dest = self.dot_dir
 
         for item in self.settings['snapshot_zips']:
@@ -263,6 +293,9 @@ class Pentaho(ReplCommand):
         self.session['snapshot_date'] = mod_date
 
     def load_drivers_to(self, dest):
+        if not Path(dest).exists():
+            out.warn(dest + " does not exist")
+            return
         for driver in self.settings['jdbc_drivers']:
             httpget(driver, dest + driver.rsplit('/', 1).pop())
 

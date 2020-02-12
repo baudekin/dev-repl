@@ -9,11 +9,13 @@ from .. import console_output as out
 from . import ReplCommand
 from . import pentaho
 
+from sys import platform
+
 
 class Box(ReplCommand):
 
-
     def do_get_qat(self, arg):
+        """Retrieves the latest QAT installer from Box (config in settings.json)"""
         ftps = FTP_TLS(host=self.settings['box_host'], user=self.settings['box_user'], passwd=self.settings['box_pwd'])
 
         builds = list(ftps.mlsd(self.settings['ci_root']))
@@ -25,7 +27,12 @@ class Box(ReplCommand):
         prev_build_num = builds[3][0]
 
         path_to_installer = self.path_to_installer_for_build(build_num)
-        local_filename = self.dot_dir + '/pentaho-business-analytics.app.tar.gz'
+
+        if platform == "linux" or platform == "linux2":
+            local_filename = self.dot_dir + '/pentaho-business-analytics.bin'
+        elif platform == "darwin":
+            local_filename = self.dot_dir + '/pentaho-business-analytics.app.tar.gz'
+
 
         rm(local_filename)
         try:
@@ -38,9 +45,13 @@ class Box(ReplCommand):
             except:
                 out.error('Failed to get build ' + prev_build_num)
 
-
     def path_to_installer_for_build(self, build_num):
-        filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.settings['bi_version'], build_num)
+        if platform == "linux" or platform == "linux2":
+            filename = "pentaho-business-analytics-{}-{}-x64.bin".format(self.settings['bi_version'], build_num)
+        elif platform == "darwin":
+            filename = "pentaho-business-analytics-{}-{}-x64.app.tar.gz".format(self.settings['bi_version'], build_num)
+        elif platform == "win32":
+            filename = "pentaho-business-analytics-{}-{}-x64.exe".format(self.settings['bi_version'], build_num)
         path_to_installer = self.settings['ci_root'] + build_num + "/ee/installers/" + filename
         return path_to_installer
 
@@ -54,6 +65,7 @@ class Box(ReplCommand):
         localfile.close()
 
     def do_install_qat(self, arg):
+        """install QAT retrieved via `get_qat`"""
         pentaho.stop_pentaho_server(self.dot_dir + 'qat')
         rm_recursive(self.dot_dir + '/temp')
         # cmd(['find', '.', '!', '-name', "'.*'", '-maxdepth', '1', '-exec', 'rm', '-rf', '"{}"', ';'],
@@ -61,27 +73,31 @@ class Box(ReplCommand):
         cmd(['rm', '-rf', self.dot_dir + 'qat'])
         cmd(['mkdir', 'qat'], self.dot_dir)
         cmd(['mkdir', 'temp'], self.dot_dir)
-        cmd(['tar', 'xvzf', 'pentaho-business-analytics.app.tar.gz', '-C', self.dot_dir + 'temp'],
-            self.dot_dir)
 
-        # find builder
-        installer = [file for file in
-                     glob.iglob(self.dot_dir + 'temp/' + '**/installbuilder.sh', recursive=True)]
-        if len(installer) != 1:
-            print('Couldn''t find installer.\n' + str(installer))
-            return
-        installer_dir = Path(installer[0]).parent.as_posix()
-        cmd(['./installbuilder.sh', '--unattendedmodeui', 'minimal',
+        if platform == "linux" or platform == "linux2":
+            installer_dir = self.dot_dir
+            installer = "./pentaho-business-analytics.bin"
+        elif platform == "darwin":
+            cmd(['tar', 'xvzf', 'pentaho-business-analytics.app.tar.gz', '-C', self.dot_dir + 'temp'],
+                self.dot_dir)
+            # find builder
+            installer = [file for file in
+                         glob.iglob(self.dot_dir + 'temp/' + '**/installbuilder.sh', recursive=True)]
+            if len(installer) != 1:
+                print('Couldn''t find installer.\n' + str(installer))
+                return
+            installer_dir = Path(installer[0]).parent.as_posix()
+            installer = "./installbuilder.sh"
+        cmd([installer, '--unattendedmodeui', 'minimal',
              '--mode', 'unattended', '--prefix',
              '{}qat'.format(self.dot_dir), '--debuglevel', '4', '--postgres_password', 'password',
              '--installsampledata', '1'], installer_dir)
+
         # remove .installedLicenses so the shared one in ~/.pentaho will be used
         cmd(['rm', self.dot_dir + 'qat/.installedLicenses.xml'])
         cmd(['cp', Path.home().as_posix() + '/.pentaho/.installedLicenses.xml', '.'])
         # skip the eula
         cmd(['rm', self.dot_dir + 'qat/server/pentaho-server/promptuser.sh'])
-
-
 
     def do_get_install_qat(self, arg):
         self.do_get_qat(arg)

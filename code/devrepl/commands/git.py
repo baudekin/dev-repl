@@ -14,9 +14,11 @@ class Git(ReplCommand):
     repo = None
 
     def do_softreset(self, arg):
-        output = cmd(["git", "log", "--oneline", "-2"], Path(self.session['curproj'][1]).parent.as_posix())
-        id = str(output).split("\\n")[1][0:8]
-        cmd(["git", "reset", "--soft", id])
+        """Executes `git reset --soft <hash>` where <hash> is the previous commit id"""
+        proj_path = Path(self.session['curproj'][1]).parent.as_posix()
+        output = cmd(["git", "log", "--oneline", "-2", "--format=%H"], proj_path)
+        id = str(output).split("\\n")[1][0:14]
+        cmd(["git", "reset", "--soft", id], proj_path)
 
     def master(self, pop=True):
         print("stash current changes (if any)")
@@ -32,20 +34,38 @@ class Git(ReplCommand):
             self.repo.git.stash("pop")
 
     def do_git(self, arg):
+        """executes git within the current project."""
         proj_dir = Path(self.session['curproj'][1]).parent.as_posix()
         cmd(['git'] + arg.split(' '), proj_dir, stdout=None, display=False)
 
     def do_pull_all_clean(self, arg):
-        'Walks the project dir, issuing a pull on master if no local changes detected.'
+        """Walks the project dir, issuing a pull on master if no local changes detected."""
         tree_actions(self.settings['proj_dir'],
-                     (lambda direntry: direntry.path.endswith('/.git'),
-                      lambda direntry: self.pull_master(direntry.path)), maxdepth=5)
+                     lambda direntry: direntry.path.endswith('/.git'),
+                     lambda direntry: self.pull_master(direntry.path), maxdepth=5)
 
     def do_fetch_all(self, arg):
-        'Walks the project dir, issuing a fetch on master.'
+        """Walks the project dir, issuing a fetch on master."""
         tree_actions(self.settings['proj_dir'],
-                     (lambda direntry: direntry.path.endswith('/.git'),
-                      lambda direntry: self.fetch_master(direntry.path)), maxdepth=5)
+                     lambda direntry: direntry.path.endswith('/.git'),
+                     lambda direntry: self.fetch_master(direntry.path), maxdepth=5)
+
+    def do_logs_for_file(self, arg):
+        """Queries *all* logs stored in devrepl.db for changed files LIKE %arg%"""
+        conn = self.connect_devrepl_db()
+        c = conn.cursor()
+
+        query = """
+select substr(commit_date,2,10), author, jira_case, substr(summary,1,40), github_url, changed_file 
+from logs
+where changed_file like '%{}%'
+order by commit_date desc
+limit 40
+
+        """.format(arg)
+        out.info(query)
+        results = c.execute(query)
+        out.table("Logs with filename like " + arg, rows=[row for row in results])
 
     def do_gitlogs(self, arg):
         if arg:
@@ -54,16 +74,13 @@ class Git(ReplCommand):
             days = '4'
         logs = []
         tree_actions(self.settings['proj_dir'],
-                     (lambda direntry: direntry.path.endswith('/.git'),
-                      lambda direntry: self.logs(direntry.path, logs, days)), maxdepth=5)
+                     lambda direntry: direntry.path.endswith('/.git'),
+                     lambda direntry: self.logs(direntry.path, logs, days), maxdepth=5)
         out.table('Changes in the past {} days'.format(days), rows=logs)
 
     def git_dir_is_clean(self, dir):
         res = cmd(['git', "--work-tree=" + dir, "--git-dir=" + dir + "/.git", "status", "--porcelain"], dir)
         return len(str(res).split('\\n')) == 1
-
-    def desc(self):
-        return "foo desc"
 
     def prompt_str(self):
         if self.session.get('curproj'):
@@ -133,8 +150,8 @@ class Git(ReplCommand):
 
     def do_load_logs(self, arg):
         tree_actions(self.settings['proj_dir'],
-                     (lambda direntry: direntry.path.endswith('/.git'),
-                      lambda direntry: self.load_logs(direntry.path)), maxdepth=5)
+                     lambda direntry: direntry.path.endswith('/.git'),
+                     lambda direntry: self.load_logs(direntry.path), maxdepth=5)
 
     def load_logs(self, path):
         path = path[:-4]

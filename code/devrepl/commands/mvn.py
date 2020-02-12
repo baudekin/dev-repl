@@ -3,8 +3,8 @@ from .. import console_output as out
 from . import ReplCommand
 from .. proc import cmd
 
-class Mvn(ReplCommand):
 
+class Mvn(ReplCommand):
     mvn_completions = (
         'clean', 'install', '-DrunITs', '-DskipTests', 'site', 'dependency:tree'
     )
@@ -13,7 +13,7 @@ class Mvn(ReplCommand):
         cmd(["mvn", "-o", "-Dmaven.surefire.debug", "test", "-f", self.session['curproj'][1], '-Dtest=' + arg], stdout=None)
 
     def do_b(self, arg):
-        'Build current project.  Add the argument "st" to skip tests'
+        """Build current project.  Add the argument 'st' to skip tests"""
         build = ["mvn", "clean", "install", "-f", self.session['curproj'][1]]
         if arg == 'st':
             build = build + ["-DskipTests"]
@@ -25,6 +25,7 @@ class Mvn(ReplCommand):
         subprocess.call(build)
 
     def do_mvn(self, arg):
+        """Executes mvn within the current project."""
         params = arg.split(' ')
         build = ["mvn", "-f", self.session['curproj'][1]] + params
         out.print_command(build)
@@ -32,7 +33,6 @@ class Mvn(ReplCommand):
 
     def complete_mvn(self, text, line, begidx, endidx):
         return [i.lstrip('-') for i in self.mvn_completions if i.startswith(text) or i.startswith('-' + text)]
-
 
     def prompt_str(self):
         return ''

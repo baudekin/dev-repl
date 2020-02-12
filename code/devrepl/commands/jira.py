@@ -8,6 +8,7 @@ from . import ReplCommand
 class Jira(ReplCommand):
 
     def do_jira(self, arg):
+        """Lists cases assigned to the current user."""
         jql = self.settings['jira_jql']
         if arg.startswith('b'):
             out.info('Opening browser.')
@@ -24,9 +25,7 @@ class Jira(ReplCommand):
         return self.settings['jira_url']
 
     def do_jira_case_commit_message(self, arg):
-        '''
-        Creates a git commit message template for cases currently assigned to you.
-        '''
+        """Creates a git commit message template for cases currently assigned to you."""
         cases = [(issue.key, issue.fields.summary, self.jira_url() + "/browse/" + issue.key) for issue in self.get_open_issues()]
         msg = """
 --------------------------------------------------------------------
